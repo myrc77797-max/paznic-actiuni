@@ -1,51 +1,32 @@
-import os
-import requests
-from datetime import datetime, timedelta
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockBarsRequest, StockSnapshotRequest
-from alpaca.data.timeframe import TimeFrame
-from alpaca.data.enums import DataFeed
+name: Paznic Actiuni
 
-TOKEN = os.environ['TELEGRAM_TOKEN']
-CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
-data_client = StockHistoricalDataClient(
-    os.environ['ALPACA_API_KEY'], os.environ['ALPACA_SECRET_KEY']
-)
+on:
+  schedule:
+    - cron: '*/15 13-20 * * 1-5'
+  workflow_dispatch:
 
-def trimite_alerta(text):
-    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-                  data={"chat_id": CHAT_ID, "text": text})
+permissions:
+  contents: write
 
-watchlist = ["MU","SNDK","MRVL","ARM","AVGO","DELL","WDC","STX","CSCO","CIEN","LITE"]
-TOLERANTA = 1.02
-
-snapshots = data_client.get_stock_snapshot(
-    StockSnapshotRequest(symbol_or_symbols=watchlist, feed=DataFeed.IEX)
-)
-bars = data_client.get_stock_bars(
-    StockBarsRequest(symbol_or_symbols=watchlist, timeframe=TimeFrame.Day,
-                     start=datetime.now() - timedelta(days=40), feed=DataFeed.IEX)
-).df
-
-stabilizat_list, in_cadere_list = [], []
-for sym in watchlist:
-    snap = snapshots.get(sym)
-    if not snap or snap.latest_trade is None or sym not in bars.index.get_level_values(0):
-        continue
-    pret = snap.latest_trade.price
-    closes = bars.loc[sym]["close"]
-    sma20 = closes.tail(20).mean()
-    sma5  = closes.tail(5).mean()
-    in_zona = pret <= sma20 * TOLERANTA
-    stabilizat = pret >= sma5
-    if in_zona and stabilizat:
-        stabilizat_list.append(f"{sym}: {pret:.2f} (media20: {sma20:.2f})")
-    elif in_zona:
-        in_cadere_list.append(f"{sym}: {pret:.2f} (media20: {sma20:.2f})")
-
-if in_cadere_list:
-    trimite_alerta("📉 In zona (la media de 20), dar inca scade — urmareste:\n" + "\n".join(in_cadere_list))
-if stabilizat_list:
-    trimite_alerta("✅ In zona SI se stabilizeaza — posibil moment de intrare:\n" + "\n".join(stabilizat_list))
-
-print("Verificare terminata.")
+jobs:
+  paznic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install alpaca-py requests
+      - run: python paznic.py
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Salveaza starea
+        run: |
+          git config user.name "paznic-bot"
+          git config user.email "paznic@bot.local"
+          git add stare.json
+          git commit -m "actualizare stare" || echo "nimic de comis"
+          git push
