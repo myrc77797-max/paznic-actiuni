@@ -30,7 +30,9 @@ try:
         os.environ['ALPACA_API_KEY'], os.environ['ALPACA_SECRET_KEY']
     )
     watchlist = ["MU", "SNDK", "MRVL", "ARM", "AVGO", "DELL",
-                 "WDC", "STX", "CSCO", "CIEN", "LITE"]
+                 "WDC", "STX", "CSCO", "CIEN", "LITE", "AMD",
+                 "AMSC", "IREN", "ROK", "TER", "SMCI", "IBM",
+                 "NVDA", "GLW", "HPE", "QCOM"]
     TOLERANTA = 1.02
 
     try:
